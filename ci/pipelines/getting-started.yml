@@ -1,0 +1,61 @@
+
+# resources - external input and outputs of a job in a pipeline. available to all tasks
+# resource type: core - git, s3, docker-image, custom - 
+# resource behaviours: versions, what to fetch,
+# check_every - polling override to check resource regularly
+# source - specific to the resource type being used
+# check core resource types - fly -t <alias> workers -d
+
+---
+resources:
+  - name: source-code
+    type: git
+    source:
+      uri: https://github.com/garlong/concourse-cypress-test-x64
+      branch: main
+
+jobs:
+  - name: pull-source
+    plan:
+      - get: source-code
+      - task: show-contents
+        file: source-code/ci/tasks/show-contents-task.yml
+      - task: install-dependencies
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: node
+              tag: 17.2.0
+          inputs:
+            - name: source-code
+          outputs:
+            - name: source-code
+          run:
+            path: sh
+            args:
+              - -exec
+              - |
+                cd source-code
+                npm i
+      - task: e2e-test
+        config: 
+          platform: linux
+          image_resource:
+            type: registry-image
+            source: 
+              repository: cypress/included
+              tag: 8.3.0
+          inputs:
+          - name: source-code
+          outputs:
+          - name: source-code
+          run:
+            path: sh
+            args:
+            - -exec
+            - |
+              cd source-code
+              npm run cy:ci
+# fly -t cypress set-pipeline -c cypress-pipeline.yml -p cypress-pipeline
